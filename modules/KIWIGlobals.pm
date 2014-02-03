@@ -290,7 +290,7 @@ sub mount {
 				}
 				# wait for the mapping to finish
 				KIWIQX::qxx ("udevadm settle --timeout=30 2>&1");
-				push @UmountStack,"kpartx -sd $loop";
+				push @UmountStack,"kpartx -sdv $loop";
 				$this->{UmountStack} = \@UmountStack;
 				$loop =~ s/\/dev\///;
 				$source = "/dev/mapper/".$loop."p3";
