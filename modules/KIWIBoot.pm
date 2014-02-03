@@ -1206,14 +1206,14 @@ sub setupInstallStick {
 	#------------------------------------------
 	if ($needBiosP) {
 		$pnr++;
-		push @commands,"n","p:legacy",$pnr,".","+".$legacysize."M";
+		push @commands,"n","p:legacy",$pnr,".","+".$legacysize."M","";
 		$this->{partids}{biosgrub}  = $pnr;
 	}
 	#==========================================
 	# setup boot partition
 	#------------------------------------------
 	$pnr++;
-	push @commands,"n","p:lxboot",$pnr,".","+".$irdsize."M";
+	push @commands,"m","p:lxboot",$pnr,".","+".$irdsize."M",$partid;
 	push @commands,"t",$pnr,$partid;
 	push @commands,"a",$pnr;
 	$this->{partids}{boot} = $pnr;
@@ -2237,7 +2237,7 @@ sub setupBootDisk {
 		}
 		if ($needBootP) {
 			$pnr++;
-			push @commands,"n","p:lxboot",$pnr,".","+".$this->{bootsize}."M";
+			push @commands,"m","p:lxboot",$pnr,".","+".$this->{bootsize}."M";
 			push @commands,"t",$pnr,$partid;
 			$this->{partids}{boot} = $pnr;
 			if (! $needJumpP) {
@@ -5888,7 +5888,7 @@ sub bindDiskPartitions {
 	}
 	# wait for the mapping devices to finish
 	qxx ("udevadm settle --timeout=30 2>&1");
-	push @cStack,"kpartx -sd $disk";
+	push @cStack,"kpartx -sdv $disk";
 	$this->{cleanupStack} = \@cStack;
 	$disk =~ s/dev\///;
 	$part = "/dev/mapper".$disk."p";
@@ -6171,6 +6171,21 @@ sub setStoragePartition {
 						"$parted_exec -s $device unit s $p_cmd 2>&1"
 					);
 				}
+                               if ($cmd eq "m") {
+                                       my $name = $commands[$count+1];
+                                       my $size = $commands[$count+4];
+                                       if ($ptype ne 'gpt') {
+                                               $name = 'primary';
+                                       } else {
+                                               $name =~ s/^p://;
+                                       }
+                                       $this -> initGeometry ($device,$size);
+                                       $p_cmd = "mkpart $name ext2 $this->{pStart} $this->{pStopp}";
+                                       $kiwi -> loginfo ("PARTED input: $device [$p_cmd]\n");
+                                       $status = qxx (
+                                               "$parted_exec -s $device unit s $p_cmd 2>&1"
+                                       );
+                               }
 				if (($cmd eq "t") && ($ptype eq 'msdos')) {
 					my $index= $commands[$count+1];
 					my $type = $commands[$count+2];
@@ -6184,7 +6199,9 @@ sub setStoragePartition {
 						$p_cmd = "set $index lvm on";
 					} else {
 						# be careful, this is a suse parted extension
-						$p_cmd = "set $index type 0x$type";
+						# FIXME: SUSE specific
+						#$p_cmd = "set $index type 0x$type";
+						next;
 					}
 					$kiwi -> loginfo ("PARTED input: $device [$p_cmd]\n");
 					$status = qxx (
